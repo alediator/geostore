@@ -27,6 +27,7 @@
  */
 package it.geosolutions.geostore.services.rest.impl;
 
+import it.geosolutions.geostore.core.model.Attribute;
 import it.geosolutions.geostore.core.model.Resource;
 import it.geosolutions.geostore.core.model.User;
 import it.geosolutions.geostore.core.model.enums.Role;
@@ -34,7 +35,10 @@ import it.geosolutions.geostore.services.ResourceService;
 import it.geosolutions.geostore.services.UserService;
 import it.geosolutions.geostore.services.dto.ShortAttribute;
 import it.geosolutions.geostore.services.dto.ShortResource;
+import it.geosolutions.geostore.services.dto.search.AndFilter;
+import it.geosolutions.geostore.services.dto.search.BaseField;
 import it.geosolutions.geostore.services.dto.search.CategoryFilter;
+import it.geosolutions.geostore.services.dto.search.FieldFilter;
 import it.geosolutions.geostore.services.dto.search.SearchFilter;
 import it.geosolutions.geostore.services.dto.search.SearchOperator;
 import it.geosolutions.geostore.services.exception.BadRequestServiceEx;
@@ -44,11 +48,11 @@ import it.geosolutions.geostore.services.model.ExtUserList;
 import it.geosolutions.geostore.services.rest.RESTExtJsService;
 import it.geosolutions.geostore.services.rest.exception.BadRequestWebEx;
 import it.geosolutions.geostore.services.rest.exception.InternalErrorWebEx;
-import it.geosolutions.geostore.services.rest.utils.GeoStorePrincipal;
 
 import java.security.Principal;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 
 import javax.ws.rs.core.SecurityContext;
@@ -141,6 +145,19 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
     public String getResourcesByCategory(SecurityContext sc, String categoryName, Integer start,
             Integer limit) throws BadRequestWebEx {
 
+        return getResourcesByCategory(sc, categoryName, null, start, limit);
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see it.geosolutions.geostore.services.rest.RESTExtJsService#getResourcesByCategory(javax.ws.rs.core.SecurityContext, java.lang.String,
+     * java.lang.Integer, java.lang.Integer)
+     */
+    @Override
+    public String getResourcesByCategory(SecurityContext sc, String categoryName, String categorySearch, Integer start,
+            Integer limit) throws BadRequestWebEx {
+
         if (((start != null) && (limit == null)) || ((start == null) && (limit != null))) {
             throw new BadRequestWebEx("start and limit params should be declared together");
         }
@@ -150,7 +167,7 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
 
         if (LOGGER.isDebugEnabled())
             LOGGER.debug("getResourcesByCategory(" + categoryName + ", start=" + start + ", limit="
-                    + limit);
+                    + limit + (categorySearch != null ? ", search=" + categorySearch : ""));
 
         User authUser = extractAuthUser(sc);
 
@@ -161,15 +178,23 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
 
         try {
             SearchFilter filter = new CategoryFilter(categoryName, SearchOperator.EQUAL_TO);
+            if(categorySearch != null){
+            	categorySearch = categorySearch.replaceAll("[*]", "%");
+            	filter = new AndFilter(filter, new FieldFilter(BaseField.NAME, categorySearch, SearchOperator.LIKE));
+            }
 
-            List<ShortResource> resources = resourceService.getResources(filter, page, limit,
+            List<Resource> resources = resourceService.getResources(filter, page, limit, true, false,
                     authUser);
 
             long count = 0;
             if (resources != null && resources.size() > 0)
                 count = resourceService.getCountByFilter(filter);
-
-            JSONObject result = makeJSONResult(true, count, resources, authUser);
+            
+            // Add templateId attribute if available
+            List<String> extraAttributes = new LinkedList<String>();
+            extraAttributes.add("templateId");
+            
+            JSONObject result = makeExtendedJSONResult(true, count, resources, authUser, extraAttributes);
             return result.toString();
 
         } catch (InternalErrorServiceEx e) {
@@ -194,7 +219,7 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
      * java.lang.Integer, boolean, boolean, it.geosolutions.geostore.services.dto.search.SearchFilter)
      */
     @Override
-    public ExtResourceList getExtResourcesList(SecurityContext sc, Integer start, Integer limit,
+    public ExtResourceList getExtResourcesList(SecurityContext sc, Integer starserver/modules/rest/extjst, Integer limit,
             boolean includeAttributes, SearchFilter filter) throws BadRequestWebEx {
 
         if (((start != null) && (limit == null)) || ((start == null) && (limit != null))) {
@@ -234,6 +259,91 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
 
             return null;
         }
+    }
+
+    /**
+     * @param success
+     * @param count
+     * @param resources
+     * @param extraAttributes 
+     * @return JSONObject
+     */
+    private JSONObject makeExtendedJSONResult(boolean success, long count, List<Resource> resources,
+            User authUser, List<String> extraAttributes) {
+        JSONObject jsonObj = new JSONObject();
+        jsonObj.put("success", success);
+        jsonObj.put("totalCount", count);
+
+        if (resources != null) {
+            Iterator<Resource> iterator = resources.iterator();
+
+            JSON result;
+
+            int size = resources.size();
+            if (size == 0)
+                result = null;
+            else if (size > 1)
+                result = new JSONArray();
+            else
+                result = new JSONObject();
+
+            while (iterator.hasNext()) {
+            	Resource sr = iterator.next();
+
+                if (sr != null) {
+                    JSONObject jobj = new JSONObject();
+
+                    if (authUser != null){
+                    	jobj.element("canDelete", true);
+                        jobj.element("canEdit", true);
+                        jobj.element("canCopy", true);
+                    }else{
+                        jobj.element("canDelete", false);
+                        jobj.element("canEdit", false);
+                        jobj.element("canCopy", false);
+                    }
+
+                    Date date = sr.getCreation();
+                    if (date != null)
+                        jobj.element("creation", date.toString());
+
+                    date = sr.getLastUpdate();
+                    if (date != null)
+                        jobj.element("lastUpdate", date.toString());
+
+                    String description = sr.getDescription();
+                    if (description != null)
+                        jobj.element("description", description);
+
+                    jobj.element("id", sr.getId());
+                    jobj.element("name", sr.getName());
+                    
+                    // Append extra attributes
+                    if(extraAttributes != null && sr.getAttribute() != null){
+                    	for(Attribute at: sr.getAttribute()){
+                    		if(extraAttributes.contains(at.getName())){
+                                jobj.element(at.getName(), at.getValue());
+                    		}
+                    	}
+                    }
+
+                    ShortAttribute owner = resourceService.getAttribute(sr.getId(), "owner");
+                    if (owner != null)
+                        jobj.element("owner", owner.getValue());
+
+                    if (result instanceof JSONArray)
+                        ((JSONArray) result).add(jobj);
+                    else
+                        result = jobj;
+                }
+            }
+
+            jsonObj.put("results", result != null ? result.toString() : "");
+        } else {
+            jsonObj.put("results", "");
+        }
+
+        return jsonObj;
     }
 
     /**

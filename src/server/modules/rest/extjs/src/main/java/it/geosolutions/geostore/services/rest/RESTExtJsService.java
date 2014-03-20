@@ -84,6 +84,14 @@ public interface RESTExtJsService {
             @PathParam("categoryName") String categoryName, @QueryParam("start") Integer start,
             @QueryParam("limit") Integer limit) throws BadRequestWebEx, InternalErrorWebEx;
 
+    @GET
+    @Path("/search/category/{categoryName}/{categorySearch}")
+    @Produces({ MediaType.APPLICATION_JSON })
+    @RolesAllowed({ "ADMIN", "USER", "GUEST" })
+    String getResourcesByCategory(@Context SecurityContext sc,
+            @PathParam("categoryName") String categoryName, @PathParam("categorySearch") String categorySearch, @QueryParam("start") Integer start,
+            @QueryParam("limit") Integer limit) throws BadRequestWebEx, InternalErrorWebEx;
+
     /**
      * @param sc
      * @param filter
