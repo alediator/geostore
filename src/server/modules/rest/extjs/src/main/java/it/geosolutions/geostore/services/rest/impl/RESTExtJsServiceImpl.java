@@ -75,6 +75,14 @@ import org.springframework.security.core.GrantedAuthority;
 public class RESTExtJsServiceImpl implements RESTExtJsService {
 
     private final static Logger LOGGER = Logger.getLogger(RESTExtJsServiceImpl.class);
+ 
+    // Default extra attributes to get from each result
+    private final static List<String> extraAttributes;
+    static{
+    	extraAttributes = new LinkedList<String>();
+    	// Add templateId attribute if available
+        extraAttributes.add("templateId");
+    }
 
     private ResourceService resourceService;
 
@@ -109,8 +117,13 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
 
         if (LOGGER.isInfoEnabled())
             LOGGER.info("Retrieving the paginated resource list ... ");
-
-        User authUser = extractAuthUser(sc);
+        
+        User authUser = null;
+        try{
+        	authUser = extractAuthUser(sc);
+        }catch (InternalErrorWebEx ie){
+        	// serch without user information
+        }
 
         int page = start == 0 ? start : start / limit;
 
@@ -168,8 +181,13 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
         if (LOGGER.isDebugEnabled())
             LOGGER.debug("getResourcesByCategory(" + categoryName + ", start=" + start + ", limit="
                     + limit + (categorySearch != null ? ", search=" + categorySearch : ""));
-
-        User authUser = extractAuthUser(sc);
+        
+        User authUser = null;
+        try{
+        	authUser = extractAuthUser(sc);
+        }catch (InternalErrorWebEx ie){
+        	// serch without user information
+        }
 
         Integer page = null;
         if (start != null) {
@@ -189,10 +207,6 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
             long count = 0;
             if (resources != null && resources.size() > 0)
                 count = resourceService.getCountByFilter(filter);
-            
-            // Add templateId attribute if available
-            List<String> extraAttributes = new LinkedList<String>();
-            extraAttributes.add("templateId");
             
             JSONObject result = makeExtendedJSONResult(true, count, resources, authUser, extraAttributes);
             return result.toString();
@@ -219,7 +233,7 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
      * java.lang.Integer, boolean, boolean, it.geosolutions.geostore.services.dto.search.SearchFilter)
      */
     @Override
-    public ExtResourceList getExtResourcesList(SecurityContext sc, Integer starserver/modules/rest/extjst, Integer limit,
+    public ExtResourceList getExtResourcesList(SecurityContext sc, Integer start, Integer limit,
             boolean includeAttributes, SearchFilter filter) throws BadRequestWebEx {
 
         if (((start != null) && (limit == null)) || ((start == null) && (limit != null))) {
@@ -229,8 +243,13 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
         if (LOGGER.isDebugEnabled())
             LOGGER.debug("getResourcesList(start=" + start + ", limit=" + limit
                     + ", includeAttributes=" + includeAttributes);
-
-        User authUser = extractAuthUser(sc);
+        
+        User authUser = null;
+        try{
+        	authUser = extractAuthUser(sc);
+        }catch (InternalErrorWebEx ie){
+        	// serch without user information
+        }
 
         Integer page = null;
         if (start != null) {
