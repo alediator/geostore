@@ -289,80 +289,7 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
      */
     private JSONObject makeExtendedJSONResult(boolean success, long count, List<Resource> resources,
             User authUser, List<String> extraAttributes) {
-        JSONObject jsonObj = new JSONObject();
-        jsonObj.put("success", success);
-        jsonObj.put("totalCount", count);
-
-        if (resources != null) {
-            Iterator<Resource> iterator = resources.iterator();
-
-            JSON result;
-
-            int size = resources.size();
-            if (size == 0)
-                result = null;
-            else if (size > 1)
-                result = new JSONArray();
-            else
-                result = new JSONObject();
-
-            while (iterator.hasNext()) {
-            	Resource sr = iterator.next();
-
-                if (sr != null) {
-                    JSONObject jobj = new JSONObject();
-
-                    if (authUser != null){
-                    	jobj.element("canDelete", true);
-                        jobj.element("canEdit", true);
-                        jobj.element("canCopy", true);
-                    }else{
-                        jobj.element("canDelete", false);
-                        jobj.element("canEdit", false);
-                        jobj.element("canCopy", false);
-                    }
-
-                    Date date = sr.getCreation();
-                    if (date != null)
-                        jobj.element("creation", date.toString());
-
-                    date = sr.getLastUpdate();
-                    if (date != null)
-                        jobj.element("lastUpdate", date.toString());
-
-                    String description = sr.getDescription();
-                    if (description != null)
-                        jobj.element("description", description);
-
-                    jobj.element("id", sr.getId());
-                    jobj.element("name", sr.getName());
-                    
-                    // Append extra attributes
-                    if(extraAttributes != null && sr.getAttribute() != null){
-                    	for(Attribute at: sr.getAttribute()){
-                    		if(extraAttributes.contains(at.getName())){
-                                jobj.element(at.getName(), at.getValue());
-                    		}
-                    	}
-                    }
-
-                    ShortAttribute owner = resourceService.getAttribute(sr.getId(), "owner");
-                    if (owner != null)
-                        jobj.element("owner", owner.getValue());
-
-                    if (result instanceof JSONArray)
-                        ((JSONArray) result).add(jobj);
-                    else
-                        result = jobj;
-                }
-            }
-
-            jsonObj.put("results", result != null ? result.toString() : "");
-        } else {
-            jsonObj.put("results", "");
-        }
-
-        return jsonObj;
+        return makeGeneralizedJSONResult(success, count, resources, authUser, extraAttributes);
     }
 
     /**
@@ -373,68 +300,7 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
      */
     private JSONObject makeJSONResult(boolean success, long count, List<ShortResource> resources,
             User authUser) {
-        JSONObject jsonObj = new JSONObject();
-        jsonObj.put("success", success);
-        jsonObj.put("totalCount", count);
-
-        if (resources != null) {
-            Iterator<ShortResource> iterator = resources.iterator();
-
-            JSON result;
-
-            int size = resources.size();
-            if (size == 0)
-                result = null;
-            else if (size > 1)
-                result = new JSONArray();
-            else
-                result = new JSONObject();
-
-            while (iterator.hasNext()) {
-                ShortResource sr = iterator.next();
-
-                if (sr != null) {
-                    JSONObject jobj = new JSONObject();
-                    jobj.element("canDelete", sr.isCanDelete());
-                    jobj.element("canEdit", sr.isCanEdit());
-
-                    if (authUser != null)
-                        jobj.element("canCopy", true);
-                    else
-                        jobj.element("canCopy", false);
-
-                    Date date = sr.getCreation();
-                    if (date != null)
-                        jobj.element("creation", date.toString());
-
-                    date = sr.getLastUpdate();
-                    if (date != null)
-                        jobj.element("lastUpdate", date.toString());
-
-                    String description = sr.getDescription();
-                    if (description != null)
-                        jobj.element("description", description);
-
-                    jobj.element("id", sr.getId());
-                    jobj.element("name", sr.getName());
-
-                    ShortAttribute owner = resourceService.getAttribute(sr.getId(), "owner");
-                    if (owner != null)
-                        jobj.element("owner", owner.getValue());
-
-                    if (result instanceof JSONArray)
-                        ((JSONArray) result).add(jobj);
-                    else
-                        result = jobj;
-                }
-            }
-
-            jsonObj.put("results", result != null ? result.toString() : "");
-        } else {
-            jsonObj.put("results", "");
-        }
-
-        return jsonObj;
+        return makeGeneralizedJSONResult(success, count, resources, authUser, null);
     }
 
     /**
@@ -531,5 +397,189 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
 
             return null;
         }
+    }
+
+    /**
+     * Generalize method. Use this.ResourceEnvelop class
+     * @param success
+     * @param count
+     * @param resources
+     * @param authUser
+     * @param extraAttributes
+     * @return
+     */
+    private JSONObject makeGeneralizedJSONResult(boolean success, long count, List<?> resources,
+            User authUser, List<String> extraAttributes) {
+        JSONObject jsonObj = new JSONObject();
+        jsonObj.put("success", success);
+        jsonObj.put("totalCount", count);
+
+        if (resources != null) {
+            Iterator<?> iterator = resources.iterator();
+
+            JSON result;
+
+            int size = resources.size();
+            if (size == 0)
+                result = null;
+            else if (size > 1)
+                result = new JSONArray();
+            else
+                result = new JSONObject();
+
+            while (iterator.hasNext()) {
+            	Object obj = iterator.next();
+            	ResourceEnvelop sr = null;
+            	if(obj instanceof Resource){
+            		sr = new ResourceEnvelop((Resource)obj, authUser);
+            	}else if(obj instanceof ShortResource){
+            		sr = new ResourceEnvelop((ShortResource)obj, authUser);
+            	}
+
+                if (sr != null) {
+                    JSONObject jobj = new JSONObject();
+
+                	jobj.element("canDelete", sr.isCanDelete());
+                    jobj.element("canEdit", sr.isCanEdit());
+                    jobj.element("canCopy", sr.isCanCopy());
+
+                    Date date = sr.getCreation();
+                    if (date != null)
+                        jobj.element("creation", date.toString());
+
+                    date = sr.getLastUpdate();
+                    if (date != null)
+                        jobj.element("lastUpdate", date.toString());
+
+                    String description = sr.getDescription();
+                    if (description != null)
+                        jobj.element("description", description);
+
+                    jobj.element("id", sr.getId());
+                    jobj.element("name", sr.getName());
+                    
+                    // Append extra attributes
+                    if(extraAttributes != null && sr.getAttribute() != null){
+                    	for(Attribute at: sr.getAttribute()){
+                    		if(extraAttributes.contains(at.getName())){
+                                jobj.element(at.getName(), at.getValue());
+                    		}
+                    	}
+                    }
+
+                    String owner = sr.getOwner();
+                    if (owner != null)
+                        jobj.element("owner", owner);
+
+                    if (result instanceof JSONArray)
+                        ((JSONArray) result).add(jobj);
+                    else
+                        result = jobj;
+                }
+            }
+
+            jsonObj.put("results", result != null ? result.toString() : "");
+        } else {
+            jsonObj.put("results", "");
+        }
+
+        return jsonObj;
+    }
+    
+    /**
+     * Encapsulates resource/short resource and credentials to perform operations with resources
+     * 
+     * @author adiaz
+     *
+     */
+    private class ResourceEnvelop{
+    	ShortResource sr;
+    	Resource r;
+    	String owner;
+    	User authUser;
+    	/**
+    	 * Create a resource envelop based on a short resource
+    	 * @param sr Short resource
+    	 * @param authUser user logged
+    	 */
+    	private ResourceEnvelop(ShortResource sr, User authUser){
+    		super();
+    		this.sr = sr;
+    		this.authUser = authUser;
+    		ShortAttribute sa = resourceService.getAttribute(sr.getId(), "owner"); 
+    		owner = sa.getValue();
+    	}
+    	/**
+    	 * Create a resource envelop based on a resource
+    	 * @param r resource
+    	 * @param authUser user logged
+    	 */
+		private ResourceEnvelop(Resource r, User authUser){
+    		super();
+    		this.r = r;
+    		this.authUser = authUser;
+    		ShortAttribute sa = resourceService.getAttribute(r.getId(), "owner");
+    		owner = sa.getValue();
+    	}
+		/**
+		 * @return true if the logged user is owner of the resource and false otherwise 
+		 */
+    	boolean isCanDelete(){
+    		return sr != null ? sr.isCanDelete() : authUser != null && owner != null && authUser.getName().equals(owner);
+    	}
+		/**
+		 * @return true if the logged user is owner of the resource and false otherwise 
+		 */
+    	boolean isCanEdit(){
+    		return sr != null ? sr.isCanEdit() : authUser != null && owner != null && authUser.getName().equals(owner);
+    	}
+    	/**
+    	 * @return data creation
+    	 */
+        Date getCreation(){
+    		return sr != null ? sr.getCreation() : r.getCreation();
+        }
+        /**
+         * @return last update
+         */
+        Date getLastUpdate(){
+    		return sr != null ? sr.getLastUpdate() : r.getLastUpdate();
+        }
+        /**
+         * @return resource description
+         */
+        String getDescription(){
+    		return sr != null ? sr.getDescription() : r.getDescription();
+        }
+        /**
+         * @return resource id
+         */
+        long getId(){
+    		return sr != null ? sr.getId() : r.getId();
+        }
+        /**
+         * @return resource name
+         */
+        String getName(){
+    		return sr != null ? sr.getName() : r.getName();
+        }
+        /**
+         * @return resource attributes if contains
+         */
+        List<Attribute> getAttribute(){
+    		return r != null ? r.getAttribute(): null;
+        }
+		/**
+		 * @return true if there are an user logged 
+		 */
+    	public Boolean isCanCopy() {
+			return authUser != null;
+		}
+    	/**
+    	 * @return resource owner
+    	 */
+    	public String getOwner() {
+			return owner;
+		}
     }
 }
