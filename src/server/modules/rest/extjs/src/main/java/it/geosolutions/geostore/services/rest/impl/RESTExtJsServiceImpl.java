@@ -75,14 +75,6 @@ import org.springframework.security.core.GrantedAuthority;
 public class RESTExtJsServiceImpl implements RESTExtJsService {
 
     private final static Logger LOGGER = Logger.getLogger(RESTExtJsServiceImpl.class);
- 
-    // Default extra attributes to get from each result
-    private final static List<String> extraAttributes;
-    static{
-    	extraAttributes = new LinkedList<String>();
-    	// Add templateId attribute if available
-        extraAttributes.add("templateId");
-    }
 
     private ResourceService resourceService;
 
@@ -157,7 +149,6 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
     @Override
     public String getResourcesByCategory(SecurityContext sc, String categoryName, Integer start,
             Integer limit) throws BadRequestWebEx {
-
         return getResourcesByCategory(sc, categoryName, null, start, limit);
     }
 
@@ -170,6 +161,26 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
     @Override
     public String getResourcesByCategory(SecurityContext sc, String categoryName, String categorySearch, Integer start,
             Integer limit) throws BadRequestWebEx {
+    	return getResourcesByCategory(sc, categoryName, categorySearch, null, start, limit);
+    }
+
+	@Override
+	public String getResourcesByCategory(SecurityContext sc,
+			String categoryName, String categorySearch, String extraAttributes,
+			Integer start, Integer limit) throws BadRequestWebEx,
+			InternalErrorWebEx {
+		
+		// read extra attribustes
+		List<String> extraAttributesList = new LinkedList<String>();
+		if(extraAttributes != null){
+			if(extraAttributes.contains(",")){
+				for(String extra: extraAttributes.split(",")){
+					extraAttributesList.add(extra);
+				}
+			}else{
+				extraAttributesList.add(extraAttributes);
+			}
+		}
 
         if (((start != null) && (limit == null)) || ((start == null) && (limit != null))) {
             throw new BadRequestWebEx("start and limit params should be declared together");
@@ -208,7 +219,7 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
             if (resources != null && resources.size() > 0)
                 count = resourceService.getCountByFilter(filter);
             
-            JSONObject result = makeExtendedJSONResult(true, count, resources, authUser, extraAttributes);
+            JSONObject result = makeExtendedJSONResult(true, count, resources, authUser, extraAttributesList);
             return result.toString();
 
         } catch (InternalErrorServiceEx e) {
@@ -224,7 +235,7 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
             JSONObject obj = makeJSONResult(false, 0, null, authUser);
             return obj.toString();
         }
-    }
+	}
 
     /*
      * (non-Javadoc)
@@ -341,7 +352,7 @@ public class RESTExtJsServiceImpl implements RESTExtJsService {
             UsernamePasswordAuthenticationToken usrToken = (UsernamePasswordAuthenticationToken) principal;
 
             User user = new User();
-            user.setName(usrToken == null ? "GUEST" : usrToken.getName());
+            user.setName(usrToken == null ? "GUEST" : ((User) usrToken.getPrincipal()).getName());
             for (GrantedAuthority authority : usrToken.getAuthorities()) {
                 if (authority != null) {
                     if (authority.getAuthority() != null
